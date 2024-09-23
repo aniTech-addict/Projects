@@ -1,0 +1,233 @@
+#include <iostream>
+#include <cstdlib>
+#include <conio.h>
+using namespace std;
+
+enum Direction { STOPPED = 0, LEFT = 1, UP_LEFT = 2, DOWN_LEFT = 3, RIGHT = 4, UP_RIGHT = 5, DOWN_RIGHT = 6 };
+
+class Ball
+{
+private:
+    int x, y;
+    int startX, startY;
+    Direction currentDir;
+
+public:
+    Ball(int startX, int startY) : startX(startX), startY(startY), x(startX), y(startY), currentDir(STOPPED) {}
+
+    void resetPosition()
+    {
+        x = startX;
+        y = startY;
+        currentDir = STOPPED;
+    }
+
+    void setDirection(Direction dir)
+    {
+        currentDir = dir;
+    }
+
+    void randomizeDirection()
+    {
+        currentDir = static_cast<Direction>(rand() % 6 + 1);
+    }
+
+    inline int getX() { return x; }
+    inline int getY() { return y; }
+    inline Direction getDirection() { return currentDir; }
+
+    void move()
+    {
+        switch (currentDir)
+        {
+        case STOPPED:
+            break;
+        case LEFT:
+            --x;
+            break;
+        case RIGHT:
+            ++x;
+            break;
+        case UP_LEFT:
+            --x; --y;
+            break;
+        case DOWN_LEFT:
+            --x; ++y;
+            break;
+        case UP_RIGHT:
+            ++x; --y;
+            break;
+        case DOWN_RIGHT:
+            ++x; ++y;
+            break;
+        }
+    }
+
+    friend ostream &operator<<(ostream &output, Ball &ball)
+    {
+        output << "Ball Position: [" << ball.x << "," << ball.y << "], Direction: " << ball.currentDir;
+        return output;
+    }
+};
+
+class Paddle
+{
+private:
+    int x, y;
+    int startX, startY;
+
+public:
+    Paddle(int posX, int posY) : startX(posX), startY(posY), x(posX), y(posY) {}
+
+    inline void resetPosition() { x = startX; y = startY; }
+    inline int getX() { return x; }
+    inline int getY() { return y; }
+    inline void moveUp() { --y; }
+    inline void moveDown() { ++y; }
+
+    friend ostream &operator<<(ostream &output, Paddle &paddle)
+    {
+        output << "Paddle Position: [" << paddle.x << "," << paddle.y << "]";
+        return output;
+    }
+};
+
+class Game
+{
+private:
+    int width, height;
+    int player1Score, player2Score;
+    char upKey1, downKey1, upKey2, downKey2;
+    bool gameRunning;
+    Ball *ball;
+    Paddle *player1;
+    Paddle *player2;
+
+public:
+    Game(int w, int h) : width(w), height(h), player1Score(0), player2Score(0), upKey1('w'), downKey1('s'), upKey2('i'), downKey2('k')
+    {
+        srand(time(0));
+        gameRunning = false;
+        ball = new Ball(w / 2, h / 2);
+        player1 = new Paddle(1, h / 2 - 3);
+        player2 = new Paddle(w - 2, h / 2 - 3);
+    }
+
+    ~Game()
+    {
+        delete ball;
+        delete player1;
+        delete player2;
+    }
+
+    void increaseScore(Paddle *player)
+    {
+        if (player == player1)
+            ++player1Score;
+        else
+            ++player2Score;
+
+        ball->resetPosition();
+        player1->resetPosition();
+        player2->resetPosition();
+    }
+
+    void draw()
+    {
+        system("cls");
+        for (int i = 0; i < width + 2; ++i)
+            cout << "#";
+        cout << endl;
+
+        for (int i = 0; i < height; ++i)
+        {
+            for (int j = 0; j < width; ++j)
+            {
+                if (j == 0)
+                    cout << "#";
+                if (j == ball->getX() && i == ball->getY())
+                    cout << "O"; // Ball
+                else if (j == player1->getX() && (i >= player1->getY() && i < player1->getY() + 4))
+                    cout << "|"; // Player 1
+                else if (j == player2->getX() && (i >= player2->getY() && i < player2->getY() + 4))
+                    cout << "|"; // Player 2
+                else
+                    cout << " ";
+                if (j == width - 1)
+                    cout << "#";
+            }
+            cout << endl;
+        }
+
+        for (int i = 0; i < width + 2; ++i)
+            cout << "#";
+        cout << endl;
+
+        cout << "Player 1 Score: " << player1Score << "\tPlayer 2 Score: " << player2Score << endl;
+    }
+
+    void processInput()
+    {
+        ball->move();
+
+        if (_kbhit())
+        {
+            char input = _getch();
+            if (input == upKey1 && player1->getY() > 0)
+                player1->moveUp();
+            if (input == downKey1 && player1->getY() + 4 < height)
+                player1->moveDown();
+            if (input == upKey2 && player2->getY() > 0)
+                player2->moveUp();
+            if (input == downKey2 && player2->getY() + 4 < height)
+                player2->moveDown();
+
+            if (ball->getDirection() == STOPPED)
+                ball->randomizeDirection();
+
+            if (input == 'q')
+                gameRunning = true;
+        }
+    }
+
+    void handleCollision()
+    {
+        // Paddle Collision Logic
+        for (int i = 0; i < 4; ++i)
+        {
+            if (ball->getX() == player1->getX() + 1 && ball->getY() == player1->getY() + i)
+                ball->setDirection(static_cast<Direction>((rand() % 3) + 4));
+            if (ball->getX() == player2->getX() - 1 && ball->getY() == player2->getY() + i)
+                ball->setDirection(static_cast<Direction>((rand() % 3) + 1));
+        }
+
+        // Wall Collision Logic
+        if (ball->getY() == height - 1)
+            ball->setDirection(ball->getDirection() == DOWN_RIGHT ? UP_RIGHT : UP_LEFT);
+        if (ball->getY() == 0)
+            ball->setDirection(ball->getDirection() == UP_RIGHT ? DOWN_RIGHT : DOWN_LEFT);
+
+        // Scoring Logic
+        if (ball->getX() == width - 1)
+            increaseScore(player1);
+        if (ball->getX() == 0)
+            increaseScore(player2);
+    }
+
+    void run()
+    {
+        while (!gameRunning)
+        {
+            draw();
+            processInput();
+            handleCollision();
+        }
+    }
+};
+
+int main()
+{
+    Game pongGame(40, 20);
+    pongGame.run();
+    return 0;
+}
